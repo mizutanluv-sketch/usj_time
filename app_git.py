@@ -101,25 +101,42 @@ tab1, tab2 = st.tabs(["✨ おすすめを教えて！", "⏱️ リアルタイ
 
 with tab1:
     if st.button("✨ 提案をリクエストする"):
-        with st.spinner("AIガイドが思考中..."):
-            # 復活させたお気に入りのプロンプト
-            prompt = f"""
-            あなたはUSJのプロガイドです。
-            現在、私はパーク内の「{selected_spot}」（座標: {spots[selected_spot]}）にいます。
+        with st.spinner("最新の待ち時間をチェックして、最適なプランを練っています..."):
+            # 1. 最新の待ち時間を取得
+            rides_data = get_wait_times()
             
-            この位置情報を踏まえて、次に向かうべきおすすめのアトラクションやエリアを1つ提案してください。
+            # 2. AIが読みやすいように待ち時間リストをテキスト化
+            wait_time_summary = ""
+            for r in rides_data:
+                name = r.get('name', 'Unknown')
+                jp_name = NAME_MAP.get(name, name)
+                wait = r.get('wait_time', 0)
+                status = "営業中" if r.get('is_open') else "休止中"
+                wait_time_summary += f"- {jp_name}: {wait}分 ({status})\n"
+
+            # 3. AIへのプロンプトに「現在地」と「全アトラクションの待ち時間」を組み込む
+            prompt = f"""
+            あなたはUSJの超ベテランプロガイドです。
+            
+            【現在の状況】
+            ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
+            ・パーク内のリアルタイム待ち時間リスト:
+            {wait_time_summary}
+            
+            【依頼】
+            上記の情報（現在地からの距離と、各アトラクションの混雑状況）を完璧に分析し、
+            次にどこへ向かうべきか、最高の一手を1つだけ提案してください。
             
             【回答のルール】
             1. 最初に「ズバリこちらです！」と結論を伝える。
-            2．現在の待ち時間を表示する。
-            3. 選んだ理由を3つのポイントで解説する（距離の近さや、現在の待ち時間や想定混雑を考慮して）。
-            4. 最後にプロらしいワクワクするアドバイスを添える。
+            2. 選んだ理由を3つのポイントで解説する（「近いから」「空いているから」「効率が良いから」など具体的に）。
+            3. 最後にプロらしいワクワクするアドバイスを添える。
             
-            回答は日本語で、Streamlitで見やすいようにMarkdown形式（太字や絵文字）を多用して出力してください。
+            回答は日本語で、Markdown形式（太字や絵文字）を使ってスマホで見やすく出力してください。
             """
             
             answer = ask_gemini_v3(prompt)
-            st.success("AIガイドからの提案")
+            st.success("AIガイドからの最適解")
             st.markdown(answer)
 
 with tab2:
