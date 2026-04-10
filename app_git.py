@@ -6,7 +6,7 @@ from streamlit_js_eval import get_geolocation
 st.set_page_config(page_title="USJ 最強ナビゲーター", page_icon="🎢")
 
 # API設定
-#GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # APIモデル設定（ここでも変数を使うと管理が楽になります）
 #MODEL_ID = "gemini-robotics-er-1.5-preview"
