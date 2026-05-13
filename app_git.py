@@ -10,10 +10,14 @@ st.set_page_config(page_title="USJ 最強ナビゲーター", page_icon="🎢")
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("エラー: GEMINI_API_KEY が設定されていません。")
     st.stop()
-
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-MODEL_ID = "gemini-1.5-flash-latest" # 最新の安定モデル
-DISPLAY_MODEL = "Gemini 1.5 Flash (Optimized)"
+
+# APIモデル設定（ここでも変数を使うと管理が楽になります）
+MODEL_ID = "gemini-3.1-flash-lite"
+#MODEL_ID = "gemini-3.1-flash-lite-preview"
+#MODEL_ID = "gemini-3-flash-preview"
+#MODEL_ID = "gemini-robotics-er-1.5-preview"
+DISPLAY_MODEL = MODEL_ID.replace("-", " ").title()
 
 # 日本語変換マップ
 NAME_MAP = {
