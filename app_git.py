@@ -9,9 +9,10 @@ st.set_page_config(page_title="USJ 最強ナビゲーター", page_icon="🎢")
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # APIモデル設定（ここでも変数を使うと管理が楽になります）
-#MODEL_ID = "gemini-robotics-er-1.5-preview"
-MODEL_ID = "gemini-3.1-flash-lite-preview"
+MODEL_ID = "gemini-3.1-flash-lite"
+#MODEL_ID = "gemini-3.1-flash-lite-preview"
 #MODEL_ID = "gemini-3-flash-preview"
+#MODEL_ID = "gemini-robotics-er-1.5-preview"
 DISPLAY_MODEL = MODEL_ID.replace("-", " ").title()
 
 # --- 2. 日本語変換用の辞書 (最終完成版) ---
