@@ -3,25 +3,27 @@ import requests
 import math
 from streamlit_js_eval import get_geolocation
 
-# --- 1. 初期設定と定数定義 ---
+# --- 1. 初期設定とモデル定義 ---
 st.set_page_config(page_title="USJ 最強ナビゲーター", page_icon="🎢")
 
-# APIキーの取得（セキュリティのためsecretsから取得）
+# API設定（セキュリティのためsecretsから取得）
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("エラー: GEMINI_API_KEY が設定されていません。")
     st.stop()
+
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
-# APIモデル設定（ここでも変数を使うと管理が楽になります）
+# APIモデル設定
 MODEL_ID = "gemini-3.1-flash-lite"
 #MODEL_ID = "gemini-3.1-flash-lite-preview"
 #MODEL_ID = "gemini-3-flash-preview"
 #MODEL_ID = "gemini-robotics-er-1.5-preview"
 DISPLAY_MODEL = MODEL_ID.replace("-", " ").title()
 
-# 日本語変換マップ
+# --- 2. 日本語変換用の辞書 ---
 NAME_MAP = {
     "Harry Potter and the Forbidden Journey™": "ハリー・ポッター・アンド・ザ・フォービドゥン・ジャーニー™",
+    "Harry Potter and the Forbidden Journey™ ": "ハリー・ポッター・アンド・ザ・フォービドゥン・ジャーニー™",
     "Hollywood Dream - The Ride": "ハリウッド・ドリーム・ザ・ライド",
     "Elmo's Go-Go Skateboard": "エルモのゴーゴー・スケートボード",
     "Despicable Me Minion Mayhem": "ミニオン・ハチャメチャ・ライド",
@@ -51,7 +53,7 @@ NAME_MAP = {
     "Yoshi's Adventure™": "ヨッシー・アドベンチャー™"
 }
 
-# エリアとアトラクションの紐付け
+# エリアとアトラクションの紐付け（並び替え用）
 AREA_MAPPING = {
     "ウィザーディング・ワールド・オブ・ハリー・ポッター™": [
         "Harry Potter and the Forbidden Journey™", "Flight of the Hippogriff™", "Ollivanders™"
@@ -89,7 +91,7 @@ OVER_132CM_RIDES = [
     "Hollywood Dream -The Ride - Backdrop-"
 ]
 
-# 各エリアの座標データ
+# 各エリアのマスター座標データ
 spots = {
     "パーク入口": {"lat": 34.6654, "lon": 135.4323},
     "スーパー・ニンテンドー・ワールド™": {"lat": 34.6687, "lon": 135.4301},
@@ -99,7 +101,7 @@ spots = {
     "ジュラシック・パーク": {"lat": 34.6645, "lon": 135.4305}
 }
 
-# --- 2. 関数定義 ---
+# --- 3. 関数定義 ---
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """ハバーサイン公式で2地点の距離(m)を算出"""
@@ -110,10 +112,10 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
     return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
-@st.cache_data(ttl=180) # 3分間キャッシュ
+@st.cache_data(ttl=180) # 3分間の通信キャッシュでバッテリーと通信量を節約
 def get_wait_times():
     url = "https://queue-times.com/parks/284/queue_times.json"
-    headers = {"User-Agent": "Mozilla/5.0 USJ-Navi-App-User"}
+    headers = {"User-Agent": "Mozilla/5.0 USJ-Navi-App"}
     try:
         res = requests.get(url, headers=headers, timeout=10)
         res.raise_for_status()
@@ -123,8 +125,8 @@ def get_wait_times():
             for land in data.get('lands', []):
                 rides.extend(land.get('rides', []))
         return rides
-    except Exception as e:
-        st.error(f"待ち時間データの取得に失敗しました: {e}")
+    exceptException as e:
+        st.error(f"データ取得エラー: {e}")
         return []
 
 def ask_gemini_v3(prompt):
@@ -132,16 +134,18 @@ def ask_gemini_v3(prompt):
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     try:
         res = requests.post(url, json=payload, timeout=60)
+        res.raise_for_status()
         return res.json()['candidates'][0]['content']['parts'][0]['text']
-    except Exception as e:
-        return f"AIとの通信でエラーが発生しました。時間を置いてお試しください。({e})"
+    exceptException as e:
+        return f"AIが混雑しているか、通信エラーが発生しました。少し待ってから再度お試しください。({e})"
 
-# --- 3. UI構築 ---
+# --- 4. 画面構築 ---
 st.title("🎢 USJ 最強ナビゲーター")
-st.caption(f"モデル: {DISPLAY_MODEL} | 娘さんの身長(132cm未満)・ハリーポッター愛を反映済み")
+st.caption(f"最新の {DISPLAY_MODEL} が、あなたの現在地から最適なプランを提案します。")
 
 # GPS取得
 loc = get_geolocation()
+
 spot_names = list(spots.keys())
 if loc:
     gps_label = "📍 現在地 (GPS取得済み)"
@@ -151,14 +155,16 @@ if loc:
 
 selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
 
+# タブ表示
 tab1, tab2 = st.tabs(["✨ おすすめを教えて！", "⏱️ リアルタイム待ち時間"])
 
 with tab1:
     if st.button("✨ 提案をリクエストする"):
-        with st.spinner("状況を完璧に分析中..."):
+        with st.spinner("最新の待ち時間をチェックして、最適なプランを練っています..."):
             rides_data = get_wait_times()
+            
             if not rides_data:
-                st.warning("現在、待ち時間データが取得できません。定番ルートでお楽しみください。")
+                st.error("待ち時間データが取得できませんでした。時間をおいて再度お試しください。")
             else:
                 current_coords = spots[selected_spot]
                 wait_time_summary = ""
@@ -170,42 +176,52 @@ with tab1:
                     if area_name in spots:
                         t_coords = spots[area_name]
                         dist_m = calculate_distance(current_coords['lat'], current_coords['lon'], t_coords['lat'], t_coords['lon'])
-                        walk_min = round(dist_m / 80) # 80m/min
+                        walk_min = round(dist_m / 80) # 分速80m換算
                         dist_info = f"（現在地から約{int(dist_m)}m / 徒歩{walk_min}分）"
                     
                     wait_time_summary += f"\n### {area_name} {dist_info}\n"
                     
+                    # 各エリアに属するアトラクションの抽出（空白対策の.strip()を導入）
                     for r in rides_data:
-                        eng_name = r.get('name')
-                        if eng_name in rides_in_area:
-                            if eng_name in OVER_132CM_RIDES:
-                                continue # 132cm制限は除外
+                        eng_name = r.get('name', 'Unknown')
+                        
+                        # API名とマッピング名、制限リストを全て前後の空白を除去して比較
+                        if eng_name.strip() in [name.strip() for name in rides_in_area]:
+                            if eng_name.strip() in [name.strip() for name in OVER_132CM_RIDES]:
+                                continue # 娘さんが乗れないものは除外
                             
-                            jp_name = NAME_MAP.get(eng_name, eng_name)
+                            # 辞書から日本語名を取得（完全一致、ダメなら空白除去で検索）
+                            jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
                             wait = r.get('wait_time', 0)
                             status = "営業中" if r.get('is_open') else "休止中"
                             wait_time_summary += f"- {jp_name}: {wait}分 ({status})\n"
 
+                # 3. AIへのプロンプト設定（午前中のハリポタ優先を確約）
                 prompt = f"""
-                あなたはUSJの超ベテランガイドです。
-                同行者：ハリー・ポッターが大好き（一択！）な小学3年生の女の子。
-                制限：身長132cm未満。
-                状況：午前中はハリー・ポッターエリアを遊び尽くす予定。
-
-                【現在のデータ】
-                ・現在地: {selected_spot}
-                ・エリア別待ち時間と移動目安:
-                {wait_time_summary}
-
-                【依頼】
-                上記を分析し、次に向かうべき最高の一手を1つだけ提案してください。
-                ハリー・ポッターエリア内での効率、あるいは混雑状況に応じた移動を考慮してください。
+                あなたはUSJの超ベテランプロガイドです。
                 
-                【回答ルール】
-                1. 「ズバリこちらです！」と結論から。
-                2. 理由を3点（距離・待ち時間・娘さんの好みの観点）。
-                3. ワクワクするアドバイスを添えて。
-                日本語・Markdown形式で出力してください。
+                【同行者情報】
+                ・小学3年生の女の子（ハリー・ポッターが一択で大好き！）
+                ・身長制限：132cm未満（制限を超えるアトラクションはデータから除外済み）
+                
+                【本日の戦略】
+                ・午前中はハリー・ポッターエリアを完全に遊び尽くす予定です。
+                
+                【現在の状況】
+                ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
+                ・パーク内のリアルタイム状況（エリア別）:
+                {wait_time_summary}
+                
+                【依頼】
+                上記の戦略とリアルタイム混雑・移動距離を完璧に分析し、
+                次に向かうべき最高の一手を1つだけ提案してください。
+                
+                【回答のルール】
+                1. 最初に「ズバリこちらです！」と結論を伝える。
+                2. 選んだ理由を3つのポイントで解説する（距離、待ち時間、そして何より娘さんのハリポタ愛の観点から具体的に）。
+                3. 最後にプロらしいワクワクするアドバイスを添える。
+                
+                回答は日本語で、Markdown形式（太字や絵文字）を使ってスマホで見やすく出力してください。
                 """
                 
                 answer = ask_gemini_v3(prompt)
@@ -218,15 +234,19 @@ with tab2:
         if rides:
             for area_name, rides_in_area in AREA_MAPPING.items():
                 st.subheader(f"📍 {area_name}")
+                
                 for r in rides:
-                    eng_name = r.get('name')
-                    if eng_name in rides_in_area:
-                        jp_name = NAME_MAP.get(eng_name, eng_name)
+                    eng_name = r.get('name', 'Unknown')
+                    
+                    # 空白対策を施してエリアマッチング
+                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
+                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
                         wait = r.get('wait_time', 0)
                         status = f"🟢 {wait}分待ち" if r.get('is_open') else "🔴 休止中"
-                        st.write(f"**{area_name} - {jp_name}** : {status}")
+                        st.write(f"**{jp_name}** : {status}")
         else:
-            st.error("データを取得できませんでした。")
+            st.error("待ち時間データを取得できませんでした。")
 
+# フッター
 st.divider()
 st.caption("Here we go! 2026/6/1 最高の家族の思い出を！")
