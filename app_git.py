@@ -15,9 +15,6 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # APIモデル設定
 MODEL_ID = "gemini-3.1-flash-lite"
-#MODEL_ID = "gemini-3.1-flash-lite-preview"
-#MODEL_ID = "gemini-3-flash-preview"
-#MODEL_ID = "gemini-robotics-er-1.5-preview"
 DISPLAY_MODEL = MODEL_ID.replace("-", " ").title()
 
 # --- 2. 日本語変換用の辞書 ---
@@ -70,7 +67,7 @@ AREA_MAPPING = {
     "アミティ・ビレッジ(ジョーズ)": [
         "JAWS™"
     ],
-    "ユニバーサル・ワンダーランド": [
+    "ユニバーサル・ワンワンダーランド": [
         "Elmo's Go-Go Skateboard", "Elmo's Bubble Bubble", "Elmo's Little Drive",
         "Hello Kitty's Cupcake Dream", "Hello Kitty's Ribbon Collection",
         "Moppy's Balloon Trip", "Big Bird's Big Top Circus", "The Flying Snoopy",
@@ -112,7 +109,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
     return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
-@st.cache_data(ttl=180) # 3分間の通信キャッシュでバッテリーと通信量を節約
+@st.cache_data(ttl=180) # 3分間の通信キャッシュ
 def get_wait_times():
     url = "https://queue-times.com/parks/284/queue_times.json"
     headers = {"User-Agent": "Mozilla/5.0 USJ-Navi-App"}
@@ -125,7 +122,7 @@ def get_wait_times():
             for land in data.get('lands', []):
                 rides.extend(land.get('rides', []))
         return rides
-    exceptException as e:
+    except Exception as e:
         st.error(f"データ取得エラー: {e}")
         return []
 
@@ -136,7 +133,7 @@ def ask_gemini_v3(prompt):
         res = requests.post(url, json=payload, timeout=60)
         res.raise_for_status()
         return res.json()['candidates'][0]['content']['parts'][0]['text']
-    exceptException as e:
+    except Exception as e:
         return f"AIが混雑しているか、通信エラーが発生しました。少し待ってから再度お試しください。({e})"
 
 # --- 4. 画面構築 ---
@@ -181,22 +178,21 @@ with tab1:
                     
                     wait_time_summary += f"\n### {area_name} {dist_info}\n"
                     
-                    # 各エリアに属するアトラクションの抽出（空白対策の.strip()を導入）
+                    # 各エリアに属するアトラクションの抽出
                     for r in rides_data:
                         eng_name = r.get('name', 'Unknown')
                         
-                        # API名とマッピング名、制限リストを全て前後の空白を除去して比較
+                        # API名とマッピング名を空白除去して比較
                         if eng_name.strip() in [name.strip() for name in rides_in_area]:
                             if eng_name.strip() in [name.strip() for name in OVER_132CM_RIDES]:
-                                continue # 娘さんが乗れないものは除外
+                                continue # 身長制限
                             
-                            # 辞書から日本語名を取得（完全一致、ダメなら空白除去で検索）
                             jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
                             wait = r.get('wait_time', 0)
                             status = "営業中" if r.get('is_open') else "休止中"
                             wait_time_summary += f"- {jp_name}: {wait}分 ({status})\n"
 
-                # 3. AIへのプロンプト設定（午前中のハリポタ優先を確約）
+                # 3. AIへのプロンプト設定
                 prompt = f"""
                 あなたはUSJの超ベテランプロガイドです。
                 
@@ -211,42 +207,3 @@ with tab1:
                 ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
                 ・パーク内のリアルタイム状況（エリア別）:
                 {wait_time_summary}
-                
-                【依頼】
-                上記の戦略とリアルタイム混雑・移動距離を完璧に分析し、
-                次に向かうべき最高の一手を1つだけ提案してください。
-                
-                【回答のルール】
-                1. 最初に「ズバリこちらです！」と結論を伝える。
-                2. 選んだ理由を3つのポイントで解説する（距離、待ち時間、そして何より娘さんのハリポタ愛の観点から具体的に）。
-                3. 最後にプロらしいワクワクするアドバイスを添える。
-                
-                回答は日本語で、Markdown形式（太字や絵文字）を使ってスマホで見やすく出力してください。
-                """
-                
-                answer = ask_gemini_v3(prompt)
-                st.success("AIガイドからの最適解")
-                st.markdown(answer)
-
-with tab2:
-    if st.button("🔄 情報を更新する"):
-        rides = get_wait_times()
-        if rides:
-            for area_name, rides_in_area in AREA_MAPPING.items():
-                st.subheader(f"📍 {area_name}")
-                
-                for r in rides:
-                    eng_name = r.get('name', 'Unknown')
-                    
-                    # 空白対策を施してエリアマッチング
-                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
-                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                        wait = r.get('wait_time', 0)
-                        status = f"🟢 {wait}分待ち" if r.get('is_open') else "🔴 休止中"
-                        st.write(f"**{jp_name}** : {status}")
-        else:
-            st.error("待ち時間データを取得できませんでした。")
-
-# フッター
-st.divider()
-st.caption("Here we go! 2026/6/1 最高の家族の思い出を！")
