@@ -6,7 +6,7 @@ from streamlit_js_eval import get_geolocation
 # --- 1. 初期設定とモデル定義 ---
 st.set_page_config(page_title="USJ 最強ナビゲーター", page_icon="🎢")
 
-# API設定（セキュリティのためsecretsから取得）
+# API設定（セキュリティのためsecretsから安全に取得）
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("エラー: GEMINI_API_KEY が設定されていません。")
     st.stop()
@@ -50,7 +50,7 @@ NAME_MAP = {
     "Yoshi's Adventure™": "ヨッシー・アドベンチャー™"
 }
 
-# エリアとアトラクションの紐付け（並び替え用）
+# エリアとアトラクションの紐付け（並び替え・エリア整理用）
 AREA_MAPPING = {
     "ウィザーディング・ワールド・オブ・ハリー・ポッター™": [
         "Harry Potter and the Forbidden Journey™", "Flight of the Hippogriff™", "Ollivanders™"
@@ -67,7 +67,7 @@ AREA_MAPPING = {
     "アミティ・ビレッジ(ジョーズ)": [
         "JAWS™"
     ],
-    "ユニバーサル・ワンワンダーランド": [
+    "ユニバーサル・ワンダーランド": [
         "Elmo's Go-Go Skateboard", "Elmo's Bubble Bubble", "Elmo's Little Drive",
         "Hello Kitty's Cupcake Dream", "Hello Kitty's Ribbon Collection",
         "Moppy's Balloon Trip", "Big Bird's Big Top Circus", "The Flying Snoopy",
@@ -81,7 +81,7 @@ AREA_MAPPING = {
     ]
 }
 
-# 身長制限：132cm以上の乗り物（娘さんは乗れないもの）
+# 身長制限：132cm以上の乗り物（娘さんは安全のため除外）
 OVER_132CM_RIDES = [
     "The Flying Dinosaur",
     "Hollywood Dream - The Ride",
@@ -101,7 +101,7 @@ spots = {
 # --- 3. 関数定義 ---
 
 def calculate_distance(lat1, lon1, lat2, lon2):
-    """ハバーサイン公式で2地点の距離(m)を算出"""
+    """ハバーサイン公式で2地点の直線距離(m)を正確に算出"""
     R = 6371000
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -109,7 +109,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
     return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
-@st.cache_data(ttl=180) # 3分間の通信キャッシュ
+@st.cache_data(ttl=180) # 3分間のAPIキャッシュ（アクセス過多・バッテリー消費防止）
 def get_wait_times():
     url = "https://queue-times.com/parks/284/queue_times.json"
     headers = {"User-Agent": "Mozilla/5.0 USJ-Navi-App"}
@@ -134,7 +134,7 @@ def ask_gemini_v3(prompt):
         res.raise_for_status()
         return res.json()['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        return f"AIが混雑しているか、通信エラーが発生しました。少し待ってから再度お試しください。({e})"
+        return f"AIへの通信エラーが発生しました。少し待ってから再度お試しください。({e})"
 
 # --- 4. 画面構築 ---
 st.title("🎢 USJ 最強ナビゲーター")
@@ -168,7 +168,6 @@ with tab1:
                 
                 # エリアごとに情報を整理
                 for area_name, rides_in_area in AREA_MAPPING.items():
-                    # エリアまでの距離・徒歩時間を算出
                     dist_info = ""
                     if area_name in spots:
                         t_coords = spots[area_name]
@@ -178,21 +177,21 @@ with tab1:
                     
                     wait_time_summary += f"\n### {area_name} {dist_info}\n"
                     
-                    # 各エリアに属するアトラクションの抽出
+                    # 各エリアに属するアトラクションを抽出
                     for r in rides_data:
                         eng_name = r.get('name', 'Unknown')
                         
-                        # API名とマッピング名を空白除去して比較
+                        # 前後の空白を削ってマッチング（フォービドゥン・ジャーニー対策）
                         if eng_name.strip() in [name.strip() for name in rides_in_area]:
                             if eng_name.strip() in [name.strip() for name in OVER_132CM_RIDES]:
-                                continue # 身長制限
+                                continue # 132cm未満制限の自動スキップ
                             
                             jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
                             wait = r.get('wait_time', 0)
                             status = "営業中" if r.get('is_open') else "休止中"
                             wait_time_summary += f"- {jp_name}: {wait}分 ({status})\n"
 
-                # 3. AIへのプロンプト設定
+                # 3. AIへのプロンプト設定（トリプルクォート・インデント完全検証済）
                 prompt = f"""
                 あなたはUSJの超ベテランプロガイドです。
                 
@@ -207,3 +206,42 @@ with tab1:
                 ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
                 ・パーク内のリアルタイム状況（エリア別）:
                 {wait_time_summary}
+                
+                【依頼】
+                上記の戦略とリアルタイム混雑・移動距離を完璧に分析し、
+                次に向かうべき最高の一手を1つだけ提案してください。
+                
+                【回答のルール】
+                1. 最初に「ズバリこちらです！」と結論を伝える。
+                2. 選んだ理由を3つのポイントで解説する（距離、待ち時間、そして何より娘さんのハリポタ愛の観点から具体的に）。
+                3. 最後にプロらしいワクワクするアドバイスを添える。
+                
+                回答は日本語で、Markdown形式（太字や絵文字）を使ってスマホで見やすく出力してください。
+                """
+                
+                answer = ask_gemini_v3(prompt)
+                st.success("AIガイドからの最適解")
+                st.markdown(answer)
+
+with tab2:
+    if st.button("🔄 情報を更新する"):
+        rides = get_wait_times()
+        if rides:
+            for area_name, rides_in_area in AREA_MAPPING.items():
+                st.subheader(f"📍 {area_name}")
+                
+                for r in rides:
+                    eng_name = r.get('name', 'Unknown')
+                    
+                    # タブ2側でも空白除去マッチングを徹底してフォービドゥン・ジャーニーの未表示を防止
+                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
+                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
+                        wait = r.get('wait_time', 0)
+                        status = f"🟢 {wait}分待ち" if r.get('is_open') else "🔴 休止中"
+                        st.write(f"**{jp_name}** : {status}")
+        else:
+            st.error("待ち時間データを取得できませんでした。")
+
+# フッター
+st.divider()
+st.caption("Here we go! 2026/6/1 最高の家族の思い出を！")
