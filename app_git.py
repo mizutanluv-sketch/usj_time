@@ -145,7 +145,7 @@ with st.sidebar:
     # 日本語名から英語名への逆引き辞書を動的生成
     INV_NAME_MAP = {v: k for k, v in NAME_MAP.items()}
     
-    # スマホからでも選びやすい日本語名でのマルチセレクト
+    # 日本語名でのマルチセレクト
     selected_closed_jps = st.multiselect(
         "🚫 強制休止にするアトラクション",
         options=sorted(list(INV_NAME_MAP.keys()))
@@ -155,6 +155,10 @@ with st.sidebar:
     dynamic_force_closed = [INV_NAME_MAP[jp].strip() for jp in selected_closed_jps]
 
 # --- 5. メイン画面構築 ---
+# 【復活】タイトルと使用モデル表示
+st.title("🎢 USJ 最強ナビゲーター")
+st.caption(f"最新の {DISPLAY_MODEL} が、あなたの現在地から最適なプランを提案します。")
+
 loc = get_geolocation()
 spot_names = list(spots.keys())
 if loc:
@@ -165,9 +169,65 @@ if loc:
 
 selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
 
-tab1, tab2 = st.tabs(["✨ おすすめを教えて！", "⏱️ リアルタイム待ち時間"])
+# 【変更】左側を「リアルタイム待ち時間」に、右側を「おすすめを教えて！」に入れ替え
+tab1, tab2 = st.tabs(["⏱️ リアルタイム待ち時間", "✨ おすすめを教えて！"])
 
+# 旧tab2（リアルタイム待ち時間）の内容をtab1へ移行
 with tab1:
+    if st.button("🔄 情報を更新する"):
+        rides = get_wait_times()
+        if rides:
+            matched_api_names = set()
+            
+            for area_name, rides_in_area in AREA_MAPPING.items():
+                area_rides = []
+                for r in rides:
+                    eng_name = r.get('name', 'Unknown')
+                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
+                        matched_api_names.add(eng_name.strip())
+                        area_rides.append(r)
+                
+                if area_rides:
+                    st.subheader(f"📍 {area_name}")
+                    for r in area_rides:
+                        eng_name = r.get('name', 'Unknown')
+                        is_open = r.get('is_open', False)
+                        wait = r.get('wait_time', 0)
+                        raw_open, raw_wait = is_open, wait
+                        
+                        # 【動的コントロール】選択されていたら強制上書き
+                        if eng_name.strip() in dynamic_force_closed:
+                            is_open = False
+                            wait = 0
+                            
+                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
+                        status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
+                        debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
+                        st.write(f"**{jp_name}** : {status}{debug_info}")
+            
+            # その他枠
+            other_rides = [r for r in rides if r.get('name', 'Unknown').strip() not in matched_api_names]
+            if other_rides:
+                st.subheader("📍 その他・期間限定・ショー")
+                for r in other_rides:
+                    eng_name = r.get('name', 'Unknown')
+                    is_open = r.get('is_open', False)
+                    wait = r.get('wait_time', 0)
+                    raw_open, raw_wait = is_open, wait
+                    
+                    if eng_name.strip() in dynamic_force_closed:
+                        is_open = False
+                        wait = 0
+                        
+                    jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
+                    status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
+                    debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
+                    st.write(f"**{jp_name}** : {status}{debug_info}")
+        else:
+            st.error("待ち時間データを取得できませんでした。")
+
+# 旧tab1（おすすめ提案）の内容をtab2へ移行
+with tab2:
     if st.button("✨ 提案をリクエストする"):
         with st.spinner("最新の待ち時間をチェックして、最適なプランを練っています..."):
             rides_data = get_wait_times()
@@ -254,59 +314,6 @@ with tab1:
                 answer = ask_gemini_v3(prompt)
                 st.success("AIガイドからの最適解")
                 st.markdown(answer)
-
-with tab2:
-    if st.button("🔄 情報を更新する"):
-        rides = get_wait_times()
-        if rides:
-            matched_api_names = set()
-            
-            for area_name, rides_in_area in AREA_MAPPING.items():
-                area_rides = []
-                for r in rides:
-                    eng_name = r.get('name', 'Unknown')
-                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
-                        matched_api_names.add(eng_name.strip())
-                        area_rides.append(r)
-                
-                if area_rides:
-                    st.subheader(f"📍 {area_name}")
-                    for r in area_rides:
-                        eng_name = r.get('name', 'Unknown')
-                        is_open = r.get('is_open', False)
-                        wait = r.get('wait_time', 0)
-                        raw_open, raw_wait = is_open, wait
-                        
-                        # 【動的コントロール】選択されていたら強制上書き
-                        if eng_name.strip() in dynamic_force_closed:
-                            is_open = False
-                            wait = 0
-                            
-                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                        status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
-                        debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
-                        st.write(f"**{jp_name}** : {status}{debug_info}")
-            
-            # その他枠
-            other_rides = [r for r in rides if r.get('name', 'Unknown').strip() not in matched_api_names]
-            if other_rides:
-                st.subheader("📍 その他・期間限定・ショー")
-                for r in other_rides:
-                    eng_name = r.get('name', 'Unknown')
-                    is_open = r.get('is_open', False)
-                    wait = r.get('wait_time', 0)
-                    raw_open, raw_wait = is_open, wait
-                    
-                    if eng_name.strip() in dynamic_force_closed:
-                        is_open = False
-                        wait = 0
-                        
-                    jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                    status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
-                    debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
-                    st.write(f"**{jp_name}** : {status}{debug_info}")
-        else:
-            st.error("待ち時間データを取得できませんでした。")
 
 st.divider()
 st.caption("Here we go! 2026/6/1 最高の家族の思い出を！")
