@@ -37,7 +37,7 @@ NAME_MAP = {
     "Moppy's Balloon Trip": "モッピーのバルーン・トリップ",
     "Ollivanders™": "オリバンダーの店™",
     "Playing with Curious George™": "プレイング・ウィズ・おさるのジョージ™",
-    "Sesame Street 4-D Movie Magic™": "セサミストリート 4-D ムービー・マジック™",
+    "Sesame Street 4-D Movie Magic™": "セサミストリート 4-D ムービュー・マジック™",
     "Sesame's Big Drive": "セサミのビッグ・ドライブ",
     "Shrek’s 4-D Adventure™": "シュレック 4-D アドベンチャー™",
     "SING ON TOUR": "シング・オン・ツアー",
@@ -86,7 +86,7 @@ spots = {
     "ミニオン・パーク": {"lat": 34.6660, "lon": 135.4303},
     "アミティ・ビレッジ(ジョーズ)": {"lat": 34.6662, "lon": 135.4344},
     "ジュラシック・パーク": {"lat": 34.6645, "lon": 135.4305},
-    "ステージ18（フリーレン・ウォーク）": {"lat": 34.6661, "lon": 135.4320}  # ステージ18目安
+    "ステージ18（フリーレン・ウォーク）": {"lat": 34.6661, "lon": 135.4320}
 }
 
 spot_names = list(spots.keys())
@@ -95,18 +95,25 @@ if loc:
     spot_names.insert(0, gps_label)
     spots[gps_label] = {"lat": loc['coords']['latitude'], "lon": loc['coords']['longitude']}
 
-# --- 5. 💡 左メニュー（サイドバー）の構築 ---
+# --- 5. 🛠️ 左メニュー（サイドバー）：アトクラション強制選択機能の復活 ---
 with st.sidebar:
-    st.header("⚙️ エリア設定")
-    # 現在地選択を左メニューに復活させました
-    selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
-    st.write(f"現在の位置: **{selected_spot}**")
+    st.header("⚙️ 強制有効化オプション")
+    st.caption("APIで「休止中」と判定されている、または一覧に出てこないアトラクションを強制的に『営業中』としてAIに提案させたい場合にチェックを入れてください。")
+    
+    # 登録されている日本語名リストから複数選択可能にする
+    forced_rides = st.multiselect(
+        "強制選択するアトラクション:",
+        options=sorted(list(set(NAME_MAP.values())))
+    )
     st.divider()
     st.caption(f"🤖 搭載AI: {DISPLAY_MODEL}")
 
 # --- 6. メイン画面の構築 ---
 st.title("🎢 USJ 最強ナビゲーター")
 st.caption("リアルタイムの混雑状況から、あなたに最高のプランを提案します。")
+
+# 現在地選択はメイン画面中央に配置
+selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
 
 # タブ表示
 tab1, tab2 = st.tabs(["✨ おすすめを教えて！", "⏱️ リアルタイム待ち時間"])
@@ -117,16 +124,33 @@ with tab1:
             # 1. 最新の待ち時間を取得
             rides_data = get_wait_times()
             
-            # 2. AIが読みやすいように待ち時間リストをテキスト化
+            # 2. AI向け待ち時間リストのテキスト化（強制選択ロジックを含む）
             wait_time_summary = ""
+            processed_jp_names = set()
+            
             for r in rides_data:
                 name = r.get('name', 'Unknown')
                 jp_name = NAME_MAP.get(name, name)
                 wait = r.get('wait_time', 0)
-                status = "営業中" if r.get('is_open') else "休止中"
+                is_open = r.get('is_open', False)
+                
+                # 【ロジック】もし左メニューで強制選択されていたら、一律「営業中」に書き換える
+                if jp_name in forced_rides:
+                    status = "営業中 (ユーザーによる強制選択)"
+                    if not is_open:
+                        wait = "調整中（現地で確認してください）"
+                else:
+                    status = "営業中" if is_open else "休止中"
+                
                 wait_time_summary += f"- {jp_name}: {wait}分 ({status})\n"
+                processed_jp_names.add(jp_name)
+            
+            # 【ロジック】APIに名前すら載っていないが、左メニューで強制選択されたものを追加
+            for forced_ride in forced_rides:
+                if forced_ride not in processed_jp_names:
+                    wait_time_summary += f"- {forced_ride}: 待ち時間データ未反映 ({status})\n"
 
-            # 3. AIへのプロンプトに「現在地」と「全アトラクションの待ち時間」を組み込む
+            # 3. AIへのプロンプト送信
             prompt = f"""
             あなたはUSJの超ベテランプロガイドです。
             
@@ -138,6 +162,7 @@ with tab1:
             【依頼】
             上記の情報（現在地からの距離と、各アトラクションの混雑状況）を完璧に分析し、
             次にどこへ向かうべきか、最高の一手を1つだけ提案してください。
+            「ユーザーによる強制選択」や「データ未反映」とあるアトラクションは、休止中表示を無視して営業しているものとして、積極的に提案候補に含めて評価してください。
             
             【回答のルール】
             1. 最初に「ズバリこちらです！」と結論を伝える。
@@ -159,7 +184,13 @@ with tab2:
                 eng_name = r.get('name', 'Unknown')
                 jp_name = NAME_MAP.get(eng_name, eng_name)
                 wait = r.get('wait_time', 0)
-                status = f"🟢 {wait}分待ち" if r.get('is_open') else "🔴 休止中"
+                
+                # リアルタイム表示側でも、強制有効化されているものは目立たせる
+                if jp_name in forced_rides:
+                    status = f"🔵 {wait}分待ち (強制有効化中)"
+                else:
+                    status = f"🟢 {wait}分待ち" if r.get('is_open') else "🔴 休止中"
+                
                 st.write(f"**{jp_name}** : {status}")
         else:
             st.error("待ち時間データを取得できませんでした。")
