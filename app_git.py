@@ -52,39 +52,52 @@ NAME_MAP = {
     "Snoopy's Sound Stage Adventure": "スヌーピーのサウンド・ステージ・アドベンチャー"
 }
 
-# エリアとアトラクションの紐付け
+# エリアとアトラクションの紐付け基本マスター
 AREA_MAPPING = {
     "ウィザーディング・ワールド・オブ・ハリー・ポッター™": [
-        "Harry Potter and the Forbidden Journey™", "Flight of the Hippogriff™", "Ollivanders™"
+        "Harry Potter and the Forbidden Journey™", "Flight of the Hippogriff™", "Ollivanders™",
+        "ハリー・ポッター・アンド・ザ・フォービドゥン・ジャーニー™", "フライト・オブ・ザ・ヒッポグリフ™", "オリバンダーの店™"
     ],
     "スーパー・ニンテンドー・ワールド™": [
-        "Mario Kart: Koopa's Challenge™", "Yoshi's Adventure™", "Mine Cart Madness™"
+        "Mario Kart: Koopa's Challenge™", "Yoshi's Adventure™", "Mine Cart Madness™",
+        "マリオカート ～クッパの挑戦状～™", "ヨッシー・アドベンチャー™", "ドンキーコングのクレイジー・トロッコ™"
     ],
     "ミニオン・パーク": [
-        "Despicable Me Minion Mayhem", "Freeze Ray Sliders"
+        "Despicable Me Minion Mayhem", "Freeze Ray Sliders",
+        "ミニオン・ハチャメチャ・ライド", "ミニオン・ハチャメチャ・アイス"
     ],
     "ジュラシック・パーク": [
-        "The Flying Dinosaur", "Jurassic Park – The Ride™"
+        "The Flying Dinosaur", "Jurassic Park – The Ride™",
+        "ザ・フライング・ダイナソー", "ジュラシック・パーク・ザ・ライド™"
     ],
     "アミティ・ビレッジ(ジョーズ)": [
-        "JAWS™"
+        "JAWS™", "ジョーズ™"
     ],
     "ユニバーサル・ワンダーランド": [
         "Elmo's Go-Go Skateboard", "Elmo's Bubble Bubble", "Elmo's Little Drive",
         "Hello Kitty's Cupcake Dream", "Hello Kitty's Ribbon Collection",
         "Moppy's Balloon Trip", "Big Bird's Big Top Circus", "The Flying Snoopy",
-        "Sesame's Big Drive", "Snoopy's Flying Ace Adventure", "Snoopy's Sound Stage Adventure"
+        "Sesame's Big Drive", "Snoopy's Flying Ace Adventure", "Snoopy's Sound Stage Adventure",
+        "エルモのゴーゴー・スケートボード", "エルモのバブル・バブル", "エルモのリトル・ドライブ",
+        "ハローキティのカップケーキ・ドリーム", "ハローキティのリボン・コレクション",
+        "モッピーのバルーン・トリップ", "ビッグバードのビッグトップ・サーカス", "フライング・スヌーピー",
+        "セサミのビッグ・ドライブ", "スヌーピーのフライング・エース・アドベンチャー", "スヌーピーのサウンド・ステージ・アドベンチャー"
     ],
     "ハリウッド・エリア / ニューヨーク・エリア": [
         "Hollywood Dream - The Ride", "Hollywood Dream -The Ride - Backdrop-",
         "Space Fantasy – The Ride", "SING ON TOUR", "Detective Conan: The World",
-        "Sesame Street 4-D Movie Magic™", "Shrek’s 4-D Adventure™",
-        "Playing with Curious George™"
+        "Sesame Street 4-D Movie Magic™", "Shrek’s 4-D Adventure™", "Playing with Curious George™",
+        "ハリウッド・ドリーム・ザ・ライド", "ハリウッド・ドリーム・ザ・ライド ～バックドロップ～",
+        "スペース・ファンタジー・ザ・ライド", "シング・オン・ツアー", "名探偵コナン・ザ・ワールド",
+        "セサミストリート 4-D ムービー・マジック™", "シュレック 4-D アドベンチャー™", "プレイング・ウィズ・おさるのジョージ™"
     ]
 }
 
 # 身長制限：132cm以上の乗り物（データ除外用）
-OVER_132CM_RIDES = ["The Flying Dinosaur", "Hollywood Dream - The Ride", "Hollywood Dream -The Ride - Backdrop-"]
+OVER_132CM_RIDES = [
+    "The Flying Dinosaur", "Hollywood Dream - The Ride", "Hollywood Dream -The Ride - Backdrop-",
+    "ザ・フライング・ダイナソー", "ハリウッド・ドリーム・ザ・ライド", "ハリウッド・ドリーム・ザ・ライド ～バックドロップ～"
+]
 
 # 各エリアのマスター座標データ
 spots = {
@@ -133,6 +146,47 @@ def ask_gemini_v3(prompt):
     except Exception as e:
         return f"AIへの通信エラーが発生しました。({e})"
 
+# 期間限定や部分一致を含め、アトラクションを賢く正しいエリアに分類する関数
+def get_assigned_area(name_str):
+    if "Space Fantasy" in name_str or "スペース・ファンタジー" in name_str:
+        return "ハリウッド・エリア / ニューヨーク・エリア"
+    if "ミニオン" in name_str or "Minion" in name_str:
+        return "ミニオン・パーク"
+    if "呪術廻戦" in name_str or "4-D" in name_str or "コナン" in name_str or "Conan" in name_str or "シュレック" in name_str or "セサミストリート" in name_str:
+        return "ハリウッド・エリア / ニューヨーク・エリア"
+    if "ハリー・ポッター" in name_str or "ヒッポグリフ" in name_str or "オリバンダー" in name_str or "Harry Potter" in name_str:
+        return "ウィザーディング・ワールド・オブ・ハリー・ポッター™"
+    if "マリオ" in name_str or "ヨッシー" in name_str or "Yoshi" in name_str or "Mario" in name_str or "クッパ" in name_str or "トロッコ" in name_str or "ドンキーコング" in name_str:
+        return "スーパー・ニンテンドー・ワールド™"
+    if "ザ・フライング・ダイナソー" in name_str or "ジュラシック" in name_str or "Dinosaur" in name_str:
+        return "ジュラシック・パーク"
+    if "ジョーズ" in name_str or "JAWS" in name_str:
+        return "アミティ・ビレッジ(ジョーズ)"
+    if "エルモ" in name_str or "キティ" in name_str or "スヌーピー" in name_str or "モッピー" in name_str or "ビッグバード" in name_str:
+        return "ユニバーサル・ワンダーランド"
+    
+    # 完全一致チェック
+    for area_name, rides_in_area in AREA_MAPPING.items():
+        if name_str in rides_in_area:
+            return area_name
+    return "その他・期間限定・ショー"
+
+# コントロールパネル用のマスタリスト
+SELECTABLE_RIDES = sorted(list(set([
+    "ハリー・ポッター・アンド・ザ・フォービドゥン・ジャーニー™", "フライト・オブ・ザ・ヒッポグリフ™", "オリバンダーの店™",
+    "マリオカート ～クッパの挑戦状～™", "ヨッシー・アドベンチャー™", "ドンキーコングのクレイジー・トロッコ™",
+    "ミニオン・ハチャメチャ・ライド", "ミニオン・ハチャメチャ・アイス", "ミニオン・ハチャメチャ・ミッション ～大悪党への道～",
+    "ザ・フライング・ダイナソー", "ジュラシック・パーク・ザ・ライド™", "ジョーズ™",
+    "ハリウッド・ドリーム・ザ・ライド", "ハリウッド・ドリーム・ザ・ライド ～バックドロップ～",
+    "スペース・ファンタジー・ザ・ライド", "スペース・ファンタジー・ザ・ライド ～CLUB ZEDD REMIX～",
+    "シング・オン・ツアー", "名探偵コナン・ザ・ワールド", "呪術廻戦・ザ・リアル 4-D ～廻る時計台～",
+    "セサミストリート 4-D ムービー・マジック™", "シュレック 4-D アドベンチャー™", "プレイング・ウィズ・おさるのジョージ™",
+    "エルモのゴーゴー・スケートボード", "エルモのバブル・バブル", "エルモのリトル・ドライブ",
+    "ハローキティのカップケーキ・ドリーム", "ハローキティのリボン・コレクション",
+    "モッピーのバルーン・トリップ", "ビッグバードのビッグトップ・サーカス", "フライング・スヌーピー",
+    "スヌーピーのフライング・エース・アドベンチャー", "スヌーピーのサウンド・ステージ・アドベンチャー"
+])))
+
 # --- 4. サイドバー構築（当日ノーコード管理パネル） ---
 with st.sidebar:
     st.header("⚙️ 当日コントロールパネル")
@@ -142,17 +196,10 @@ with st.sidebar:
     st.subheader("⚠️ 緊急ステータス上書き")
     st.caption("公式アプリと表示がズレている場合、ここで選択したアトラクションはPC不要で即座に「🔴 休止中 / 0分」に上書きされ、AIの提案ロジックからも除外されます。")
     
-    # 日本語名から英語名への逆引き辞書を動的生成
-    INV_NAME_MAP = {v: k for k, v in NAME_MAP.items()}
-    
-    # 日本語名でのマルチセレクト
     selected_closed_jps = st.multiselect(
         "🚫 強制休止にするアトラクション",
-        options=sorted(list(INV_NAME_MAP.keys()))
+        options=SELECTABLE_RIDES
     )
-    
-    # 選択されたアトラクションの英語名をリスト化して保持
-    dynamic_force_closed = [INV_NAME_MAP[jp].strip() for jp in selected_closed_jps]
 
 # --- 5. メイン画面構築 ---
 st.title("🎢 USJ 最強ナビゲーター")
@@ -175,51 +222,62 @@ with tab1:
     if st.button("🔄 情報を更新する"):
         rides = get_wait_times()
         if rides:
-            matched_api_names = set()
+            # 1. 事前に期間限定のスペースファンタジーが配信されているかスキャン
+            has_limited_spafan = False
+            for r in rides:
+                raw_n = r.get('name', '')
+                disp_n = raw_n.split(" - ", 1)[1].strip() if " - " in raw_n else raw_n.strip()
+                if ("スペース・ファンタジー" in disp_n and disp_n != "スペース・ファンタジー・ザ・ライド") or ("Space Fantasy" in disp_n and disp_n != "Space Fantasy – The Ride"):
+                    has_limited_spafan = True
+                    break
             
-            for area_name, rides_in_area in AREA_MAPPING.items():
-                area_rides = []
-                for r in rides:
-                    eng_name = r.get('name', 'Unknown')
-                    if eng_name.strip() in [name.strip() for name in rides_in_area]:
-                        matched_api_names.add(eng_name.strip())
-                        area_rides.append(r)
+            # 各エリアの表示バッファ
+            area_displays = {area: [] for area in AREA_MAPPING.keys()}
+            area_displays["その他・期間限定・ショー"] = []
+            
+            for r in rides:
+                raw_name = r.get('name', 'Unknown')
+                is_open = r.get('is_open', False)
+                wait = r.get('wait_time', 0)
+                raw_open, raw_wait = is_open, wait
                 
-                if area_rides:
-                    st.subheader(f"📍 {area_name}")
-                    for r in area_rides:
-                        eng_name = r.get('name', 'Unknown')
-                        is_open = r.get('is_open', False)
-                        wait = r.get('wait_time', 0)
-                        raw_open, raw_wait = is_open, wait
-                        
-                        if eng_name.strip() in dynamic_force_closed:
-                            is_open = False
-                            wait = 0
-                            
-                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                        status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
-                        debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
-                        st.write(f"**{jp_name}** : {status}{debug_info}")
-            
-            # その他枠
-            other_rides = [r for r in rides if r.get('name', 'Unknown').strip() not in matched_api_names]
-            if other_rides:
-                st.subheader("📍 その他・期間限定・ショー")
-                for r in other_rides:
-                    eng_name = r.get('name', 'Unknown')
-                    is_open = r.get('is_open', False)
-                    wait = r.get('wait_time', 0)
-                    raw_open, raw_wait = is_open, wait
+                # 【プレフィックス削除】"エリア名 - アトラクション名" からアトラクション名だけを抽出
+                if " - " in raw_name:
+                    display_name = raw_name.split(" - ", 1)[1].strip()
+                else:
+                    display_name = raw_name.strip()
                     
-                    if eng_name.strip() in dynamic_force_closed:
-                        is_open = False
-                        wait = 0
+                # 【ユーザー要望】期間限定版がある場合、通常版の「スペース・ファンタジー・ザ・ライド」はスキップ（上のは削除）
+                if has_limited_spafan and (display_name == "スペース・ファンタジー・ザ・ライド" or display_name == "Space Fantasy – The Ride"):
+                    continue
+                    
+                jp_name = NAME_MAP.get(display_name, display_name)
+                
+                # 緊急ステータス上書きチェック
+                if (raw_name in selected_closed_jps) or (display_name in selected_closed_jps) or (jp_name in selected_closed_jps):
+                    is_open = False
+                    wait = 0
+                    
+                status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
+                debug_info = f" `(API生データ: {raw_name}, is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
+                
+                # 部分一致を考慮した自動エリア分類
+                assigned_area = get_assigned_area(jp_name)
+                area_displays[assigned_area].append(f"**{jp_name}** : {status}{debug_info}")
+            
+            # エリアごとにまとめてスッキリ描画
+            for area_name in AREA_MAPPING.keys():
+                lines = area_displays[area_name]
+                if lines:
+                    st.subheader(f"📍 {area_name}")
+                    for line in lines:
+                        st.write(line)
                         
-                    jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                    status = f"🟢 {wait}分待ち" if is_open else "🔴 休止中"
-                    debug_info = f" `(API生データ: is_open={raw_open}, wait={raw_wait})`" if debug_mode else ""
-                    st.write(f"**{jp_name}** : {status}{debug_info}")
+            # その他・期間限定アトラクションの描画
+            if area_displays["その他・期間限定・ショー"]:
+                st.subheader("📍 その他・期間限定・ショー")
+                for line in area_displays["その他・期間限定・ショー"]:
+                    st.write(line)
         else:
             st.error("待ち時間データを取得できませんでした。")
 
@@ -233,60 +291,62 @@ with tab2:
             else:
                 current_coords = spots[selected_spot]
                 wait_time_summary = ""
-                matched_api_names = set()
                 
-                for area_name, rides_in_area in AREA_MAPPING.items():
-                    dist_info = ""
-                    if area_name in spots:
-                        t_coords = spots[area_name]
-                        dist_m = calculate_distance(current_coords['lat'], current_coords['lon'], t_coords['lat'], t_coords['lon'])
-                        walk_min = round(dist_m / 80)
-                        dist_info = f"（現在地から約{int(dist_m)}m / 徒歩{walk_min}分）"
-                    
-                    area_summary = ""
-                    for r in rides_data:
-                        eng_name = r.get('name', 'Unknown')
-                        
-                        if eng_name.strip() in [name.strip() for name in rides_in_area]:
-                            matched_api_names.add(eng_name.strip())
-                            
-                            if eng_name.strip() in [name.strip() for name in OVER_132CM_RIDES]:
-                                continue
-                            
-                            is_open = r.get('is_open', False)
-                            wait = r.get('wait_time', 0)
-                            
-                            if eng_name.strip() in dynamic_force_closed:
-                                is_open = False
-                                wait = 0
-                            
-                            jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                            status = "営業中" if is_open else "休止中"
-                            area_summary += f"- {jp_name}: {wait}分 ({status})\n"
-                    
-                    if area_summary:
-                        wait_time_summary += f"\n### {area_name} {dist_info}\n" + area_summary
-
-                # その他枠の処理
-                other_summary = ""
+                # 期間限定スペースファンタジーの有無をチェック
+                has_limited_spafan = False
                 for r in rides_data:
-                    eng_name = r.get('name', 'Unknown')
-                    if eng_name.strip() not in matched_api_names:
-                        is_open = r.get('is_open', False)
-                        wait = r.get('wait_time', 0)
-                        
-                        if eng_name.strip() in dynamic_force_closed:
-                            is_open = False
-                            wait = 0
-                            
-                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
-                        status = "営業中" if is_open else "休止中"
-                        other_summary += f"- {jp_name}: {wait}分 ({status})\n"
+                    raw_n = r.get('name', '')
+                    disp_n = raw_n.split(" - ", 1)[1].strip() if " - " in raw_n else raw_n.strip()
+                    if ("スペース・ファンタジー" in disp_n and disp_n != "スペース・ファンタジー・ザ・ライド") or ("Space Fantasy" in disp_n and disp_n != "Space Fantasy – The Ride"):
+                        has_limited_spafan = True
+                        break
                 
-                if other_summary:
-                    wait_time_summary += f"\n### その他・期間限定・ショー\n" + other_summary
+                area_summaries = {area: "" for area in AREA_MAPPING.keys()}
+                area_summaries["その他・期間限定・ショー"] = ""
+                
+                for r in rides_data:
+                    raw_name = r.get('name', 'Unknown')
+                    
+                    if " - " in raw_name:
+                        display_name = raw_name.split(" - ", 1)[1].strip()
+                    else:
+                        display_name = raw_name.strip()
+                        
+                    if has_limited_spafan and (display_name == "スペース・ファンタジー・ザ・ライド" or display_name == "Space Fantasy – The Ride"):
+                        continue
+                        
+                    jp_name = NAME_MAP.get(display_name, display_name)
+                    
+                    # 身長制限132cm以上の除外判定
+                    if jp_name in OVER_132CM_RIDES or display_name in OVER_132CM_RIDES:
+                        continue
+                        
+                    is_open = r.get('is_open', False)
+                    wait = r.get('wait_time', 0)
+                    
+                    if (raw_name in selected_closed_jps) or (display_name in selected_closed_jps) or (jp_name in selected_closed_jps):
+                        is_open = False
+                        wait = 0
+                        
+                    status = "営業中" if is_open else "休止中"
+                    assigned_area = get_assigned_area(jp_name)
+                    area_summaries[assigned_area] += f"- {jp_name}: {wait}分 ({status})\n"
+                    
+                for area_name in list(AREA_MAPPING.keys()) + ["その他・期間限定・ショー"]:
+                    summary_text = area_summaries[area_name]
+                    if summary_text:
+                        dist_info = ""
+                        if area_name in spots:
+                            t_coords = spots[area_name]
+                            dist_m = calculate_distance(current_coords['lat'], current_coords['lon'], t_coords['lat'], t_coords['lon'])
+                            walk_min = round(dist_m / 80)
+                            dist_info = f"（現在地から約{int(dist_m)}m / 徒歩{walk_min}分）"
+                        wait_time_summary += f"\n### {area_name} {dist_info}\n" + summary_text
 
-                # 【アップデート】2パターンを同時に要求するAIプロンプト
+                # f-stringのパースエラー（SyntaxError）を100%防ぐための変数完全分離
+                spot_lat = current_coords['lat']
+                spot_lon = current_coords['lon']
+                
                 prompt = f"""
                 あなたはUSJの超ベテランプロガイドです。
                 
@@ -298,7 +358,7 @@ with tab2:
                 ・「午前中にハリー・ポッターエリアを完全に遊び尽くしてクリアする」という超重要ミッションがあります！
                 
                 【現在の状況】
-                ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
+                ・私の現在地: {selected_spot} (座標: 緯度{spot_lat}, 経度{spot_lon})
                 ・パーク内のリアルタイム状況（エリア別）:
                 {wait_time_summary}
                 
