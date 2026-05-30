@@ -22,6 +22,7 @@ NAME_MAP = {
     "Hollywood Dream - The Ride": "ハリウッド・ドリーム・ザ・ライド",
     "Elmo's Go-Go Skateboard": "エルモのゴーゴー・スケートボード",
     "Despicable Me Minion Mayhem": "ミニオン・ハチャメチャ・ライド",
+    "Space Fantasy – The Ride": "スペース・ファンタジー・ザ・ライド",
     "The Flying Dinosaur": "ザ・フライング・ダイナソー",
     "Big Bird's Big Top Circus": "ビッグバードのビッグトップ・サーカス",
     "Detective Conan: The World": "名探偵コナン・ザ・ワールド",
@@ -76,8 +77,7 @@ AREA_MAPPING = {
     ],
     "ハリウッド・エリア / ニューヨーク・エリア": [
         "Hollywood Dream - The Ride", "Hollywood Dream -The Ride - Backdrop-",
-        "スペース・ファンタジー・ザ・ライド ～CLUB ZEDD REMIX～", "Space Fantasy – The Ride - Club Zedd Remix",  # エリア内に登録
-        "SING ON TOUR", "Detective Conan: The World",
+        "Space Fantasy – The Ride", "SING ON TOUR", "Detective Conan: The World",
         "Sesame Street 4-D Movie Magic™", "Shrek’s 4-D Adventure™",
         "Playing with Curious George™"
     ]
@@ -85,9 +85,6 @@ AREA_MAPPING = {
 
 # 身長制限：132cm以上の乗り物（データ除外用）
 OVER_132CM_RIDES = ["The Flying Dinosaur", "Hollywood Dream - The Ride", "Hollywood Dream -The Ride - Backdrop-"]
-
-# 【新設】完全に除外するアトラクション（休止中の旧スペースファンタジーなどを完全に削る）
-EXCLUDE_RIDES = ["Space Fantasy – The Ride", "スペース・ファンタジー・ザ・ライド"]
 
 # 各エリアのマスター座標データ
 spots = {
@@ -145,11 +142,16 @@ with st.sidebar:
     st.subheader("⚠️ 緊急ステータス上書き")
     st.caption("公式アプリと表示がズレている場合、ここで選択したアトラクションはPC不要で即座に「🔴 休止中 / 0分」に上書きされ、AIの提案ロジックからも除外されます。")
     
+    # 日本語名から英語名への逆引き辞書を動的生成
     INV_NAME_MAP = {v: k for k, v in NAME_MAP.items()}
+    
+    # 日本語名でのマルチセレクト
     selected_closed_jps = st.multiselect(
         "🚫 強制休止にするアトラクション",
         options=sorted(list(INV_NAME_MAP.keys()))
     )
+    
+    # 選択されたアトラクションの英語名をリスト化して保持
     dynamic_force_closed = [INV_NAME_MAP[jp].strip() for jp in selected_closed_jps]
 
 # --- 5. メイン画面構築 ---
@@ -179,11 +181,6 @@ with tab1:
                 area_rides = []
                 for r in rides:
                     eng_name = r.get('name', 'Unknown')
-                    
-                    # 休止中の旧スペースファンタジーはスキップして完全削除
-                    if eng_name.strip() in EXCLUDE_RIDES:
-                        continue
-                        
                     if eng_name.strip() in [name.strip() for name in rides_in_area]:
                         matched_api_names.add(eng_name.strip())
                         area_rides.append(r)
@@ -206,14 +203,7 @@ with tab1:
                         st.write(f"**{jp_name}** : {status}{debug_info}")
             
             # その他枠
-            other_rides = []
-            for r in rides:
-                eng_name = r.get('name', 'Unknown')
-                if eng_name.strip() in EXCLUDE_RIDES:
-                    continue
-                if eng_name.strip() not in matched_api_names:
-                    other_rides.append(r)
-                    
+            other_rides = [r for r in rides if r.get('name', 'Unknown').strip() not in matched_api_names]
             if other_rides:
                 st.subheader("📍 その他・期間限定・ショー")
                 for r in other_rides:
@@ -241,3 +231,101 @@ with tab2:
             if not rides_data:
                 st.error("待ち時間データが取得できませんでした。")
             else:
+                current_coords = spots[selected_spot]
+                wait_time_summary = ""
+                matched_api_names = set()
+                
+                for area_name, rides_in_area in AREA_MAPPING.items():
+                    dist_info = ""
+                    if area_name in spots:
+                        t_coords = spots[area_name]
+                        dist_m = calculate_distance(current_coords['lat'], current_coords['lon'], t_coords['lat'], t_coords['lon'])
+                        walk_min = round(dist_m / 80)
+                        dist_info = f"（現在地から約{int(dist_m)}m / 徒歩{walk_min}分）"
+                    
+                    area_summary = ""
+                    for r in rides_data:
+                        eng_name = r.get('name', 'Unknown')
+                        
+                        if eng_name.strip() in [name.strip() for name in rides_in_area]:
+                            matched_api_names.add(eng_name.strip())
+                            
+                            if eng_name.strip() in [name.strip() for name in OVER_132CM_RIDES]:
+                                continue
+                            
+                            is_open = r.get('is_open', False)
+                            wait = r.get('wait_time', 0)
+                            
+                            if eng_name.strip() in dynamic_force_closed:
+                                is_open = False
+                                wait = 0
+                            
+                            jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
+                            status = "営業中" if is_open else "休止中"
+                            area_summary += f"- {jp_name}: {wait}分 ({status})\n"
+                    
+                    if area_summary:
+                        wait_time_summary += f"\n### {area_name} {dist_info}\n" + area_summary
+
+                # その他枠の処理
+                other_summary = ""
+                for r in rides_data:
+                    eng_name = r.get('name', 'Unknown')
+                    if eng_name.strip() not in matched_api_names:
+                        is_open = r.get('is_open', False)
+                        wait = r.get('wait_time', 0)
+                        
+                        if eng_name.strip() in dynamic_force_closed:
+                            is_open = False
+                            wait = 0
+                            
+                        jp_name = NAME_MAP.get(eng_name, NAME_MAP.get(eng_name.strip(), eng_name))
+                        status = "営業中" if is_open else "休止中"
+                        other_summary += f"- {jp_name}: {wait}分 ({status})\n"
+                
+                if other_summary:
+                    wait_time_summary += f"\n### その他・期間限定・ショー\n" + other_summary
+
+                # 【アップデート】2パターンを同時に要求するAIプロンプト
+                prompt = f"""
+                あなたはUSJの超ベテランプロガイドです。
+                
+                【同行者情報】
+                ・小学3年生の女の子（ハリー・ポッターが一択で大、大、大好き！）
+                ・身長制限：132cm未満（制限を超える132cm以上のアトラクションはデータから除外済み）
+                
+                【本日の戦略】
+                ・「午前中にハリー・ポッターエリアを完全に遊び尽くしてクリアする」という超重要ミッションがあります！
+                
+                【現在の状況】
+                ・私の現在地: {selected_spot} (座標: {spots[selected_spot]})
+                ・パーク内のリアルタイム状況（エリア別）:
+                {wait_time_summary}
+                
+                【依頼】
+                上記の戦略、リアルタイム混雑、移動距離を完璧に分析し、当日の状況に合わせて選べるよう、以下の【2つのパターン】で次に向かうべき最高の一手をそれぞれ1つずつ提案してください。
+                
+                ---
+                
+                ### ① 【ハリー・ポッターエリア以外メイン】のおすすめ
+                午前中にハリポタエリアを無事クリアした後に向かうべき、あるいは現在エリア外にいる場合の「ハリー・ポッターエリア以外」での最高の一手を1つ選んでください。
+                
+                ### ② 【ハリー・ポッターエリア内】のおすすめ
+                午前中にハリー・ポッターエリア内を100%効率よく遊び尽くすために、今「ハリー・ポッターエリア内」で向かうべき最高の一手を1つ選んでください。
+                
+                ---
+                
+                【回答のルール】
+                1. 必ず上記の「①ハリー・ポッターエリア以外メイン」と「②ハリー・ポッターエリア内」の2つの見出しを分けて明確に出力してください。
+                2. それぞれのパターンで、最初に「ズバリこちらです！」と結論の乗り物名を伝える。
+                3. 選んだ理由を3つのポイントで解説する（距離、現在の待ち時間、そして小3の娘さんが最高に楽しめるかという観点から具体的に）。
+                4. それぞれの最後に、プロらしいワクワクするアドバイス（エリア移動のコツや、ハリポタのディープな楽しみ方など）を添える。
+                
+                回答は日本語で、Markdown形式を使ってスマホで見やすく元気いっぱいに構成してください。
+                """
+                answer = ask_gemini_v3(prompt)
+                st.success("AIガイドからの2大最適プラン")
+                st.markdown(answer)
+
+st.divider()
+st.caption("Here we go! 2026/6/1 最高の家族の思い出を！")
