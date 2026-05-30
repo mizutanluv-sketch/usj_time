@@ -44,12 +44,11 @@ NAME_MAP = {
     "The Flying Snoopy": "フライング・スヌーピー",
     "Yoshi's Adventure™": "ヨッシー・アドベンチャー™",
     
-    # 👇 【修正】API側で名前が短縮されて表示されていたハリドリ（フリーレン対応含む）
+    # 👇 API短縮名に対応したハリドリ（フリーレン×ストーリー・ライド含む）
     "The Ride": "ハリウッド・ドリーム・ザ・ライド（フリーレン×ストーリー・ライド）",
     "Backdrop-": "ハリウッド・ドリーム・ザ・ライド ～バックドロップ～",
     
-    # 👇 【新規】今日開始のフリーレン（ウォークスルー型）予測枠
-    # アプリの「リアルタイム待ち時間」タブでこれとは異なる英語名が表示された場合は、左側のキー（"Frieren..."）を書き換えてください。
+    # 👇 本日開始のフリーレン（ウォークスルー型）予測枠
     "Frieren: Beyond Journey's End - Story Walk": "葬送のフリーレン ストーリー・ウォーク ～追憶の旅～"
 }
 
@@ -77,14 +76,9 @@ def ask_gemini_v3(prompt):
     except:
         return "AIが混雑しています。少し待ってから再度お試しください。"
 
-# --- 4. 画面構築 ---
-st.title("🎢 USJ 最強ナビゲーター")
-st.caption(f"最新の {DISPLAY_MODEL} が、あなたの現在地から最適なプランを提案します。")
-
-# GPS取得
+# --- 4. 位置情報の準備 ---
 loc = get_geolocation()
 
-# 座標リスト
 spots = {
     "パーク入口": {"lat": 34.6654, "lon": 135.4323},
     "スーパー・ニンテンドー・ワールド™": {"lat": 34.6687, "lon": 135.4301},
@@ -92,7 +86,7 @@ spots = {
     "ミニオン・パーク": {"lat": 34.6660, "lon": 135.4303},
     "アミティ・ビレッジ(ジョーズ)": {"lat": 34.6662, "lon": 135.4344},
     "ジュラシック・パーク": {"lat": 34.6645, "lon": 135.4305},
-    "ステージ18（フリーレン・ウォーク）": {"lat": 34.6661, "lon": 135.4320}  # ステージ18の座標目安を追加
+    "ステージ18（フリーレン・ウォーク）": {"lat": 34.6661, "lon": 135.4320}  # ステージ18目安
 }
 
 spot_names = list(spots.keys())
@@ -101,7 +95,18 @@ if loc:
     spot_names.insert(0, gps_label)
     spots[gps_label] = {"lat": loc['coords']['latitude'], "lon": loc['coords']['longitude']}
 
-selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
+# --- 5. 💡 左メニュー（サイドバー）の構築 ---
+with st.sidebar:
+    st.header("⚙️ エリア設定")
+    # 現在地選択を左メニューに復活させました
+    selected_spot = st.selectbox("📍 あなたの現在地はどこですか？", options=spot_names)
+    st.write(f"現在の位置: **{selected_spot}**")
+    st.divider()
+    st.caption(f"🤖 搭載AI: {DISPLAY_MODEL}")
+
+# --- 6. メイン画面の構築 ---
+st.title("🎢 USJ 最強ナビゲーター")
+st.caption("リアルタイムの混雑状況から、あなたに最高のプランを提案します。")
 
 # タブ表示
 tab1, tab2 = st.tabs(["✨ おすすめを教えて！", "⏱️ リアルタイム待ち時間"])
